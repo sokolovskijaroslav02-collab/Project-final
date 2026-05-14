@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Приключение с Алисой</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .chat-container { max-width: 800px; margin: 0 auto; padding: 20px; }
+        .message { margin: 10px 0; padding: 10px; border-radius: 10px; }
+        .alice { background-color: #e3f2fd; }
+        .user { background-color: #c8e6c9; text-align: right; }
+        .button-panel { margin-top: 20px; }
+        .btn-action { margin: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="chat-container">
+            <h1 class="text-center">🐉 Приключение с Алисой</h1>
+            <div id="chat-log" class="border rounded p-3" style="height: 500px; overflow-y: scroll;">
+                <div class="message alice">Добро пожаловать в приключение! Напишите или нажмите на кнопку.</div>
+            </div>
+            <div class="button-panel" id="button-panel"></div>
+            <div class="input-group mt-3">
+                <input type="text" id="user-input" class="form-control" placeholder="Введите команду...">
+                <button class="btn btn-primary" onclick="sendMessage()">Отправить</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let sessionState = {};
+
+        async function sendMessage(command, action = null) {
+            const inputField = document.getElementById('user-input');
+            const message = command || inputField.value;
+            if (!message && !action) return;
+
+            // Отображаем сообщение пользователя
+            const chatLog = document.getElementById('chat-log');
+            const userMsgDiv = document.createElement('div');
+            userMsgDiv.className = 'message user';
+            userMsgDiv.innerText = message || action;
+            chatLog.appendChild(userMsgDiv);
+            chatLog.scrollTop = chatLog.scrollHeight;
+
+            if (!command) inputField.value = '';
+
+            try {
+                const response = await fetch('/alice', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        session: { user: { user_id: 'web_user' } },
+                        state: { session: sessionState },
+                        request: { command: message, payload: action ? { action: action } : {} }
+                    })
+                });
+                const data = await response.json();
+                
+                sessionState = data.session_state || {};
+
+                // Отображаем ответ Алисы
+                const aliceMsgDiv = document.createElement('div');
+                aliceMsgDiv.className = 'message alice';
+                aliceMsgDiv.innerText = data.response.text;
+                chatLog.appendChild(aliceMsgDiv);
+                
+                // Отображаем кнопки
+                const buttonPanel = document.getElementById('button-panel');
+                buttonPanel.innerHTML = '';
+                if (data.response.buttons) {
+                    data.response.buttons.forEach(btn => {
+                        const btnElement = document.createElement('button');
+                        btnElement.className = 'btn btn-outline-secondary btn-action';
+                        btnElement.innerText = btn.title;
+                        btnElement.onclick = () => sendMessage(btn.title, btn.payload?.action);
+                        buttonPanel.appendChild(btnElement);
+                    });
+                }
+                
+                chatLog.scrollTop = chatLog.scrollHeight;
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        document.getElementById('user-input').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') sendMessage();
+        });
+    </script>
+</body>
+</html>
